@@ -9,9 +9,14 @@ npm install
 npm run dev
 ```
 
-## Установка на iPhone
+## Сборка для GitHub Pages
 
-1. Откройте сайт в Safari (нужен HTTPS или localhost через туннель).
-2. Поделиться → На экран «Домой».
+Репозиторий открывается по пути `/Leksa/`, поэтому в `vite.config.ts` задано `base: '/Leksa/'`.
 
-Данные сетов хранятся локально в браузере.
+```bash
+npm run build
+```
+
+Задеплойте содержимое папки `dist` на GitHub Pages.
+
+Сайт: https://irina0110.github.io/Leksa/
