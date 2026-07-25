@@ -13,7 +13,12 @@ npm run dev
 
 ## GitHub Pages
 
-После пуша в `main` GitHub Actions собирает проект и публикует папку `dist`.
+Почему была пустая страница: на Pages лежал исходный код (`main.tsx`), а не собранное приложение.
 
-Один раз в настройках репозитория:
-**Settings → Pages → Build and deployment → Source: GitHub Actions**
+После пуша в `main` Actions собирает проект и публикует ветку `gh-pages`.
+
+**Один раз в настройках репозитория:**
+
+1. Откройте [Settings → Pages](https://github.com/Irina0110/Leksa/settings/pages)
+2. **Build and deployment → Source:** Deploy from a branch
+3. **Branch:** `gh-pages` / `/ (root)` → Save
