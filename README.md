@@ -2,21 +2,18 @@
 
 PWA на React для изучения иностранных слов на iPhone.
 
-## Запуск
+Сайт: https://irina0110.github.io/Leksa/
+
+## Запуск локально
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Сборка для GitHub Pages
+## GitHub Pages
 
-Репозиторий открывается по пути `/Leksa/`, поэтому в `vite.config.ts` задано `base: '/Leksa/'`.
+После пуша в `main` GitHub Actions собирает проект и публикует папку `dist`.
 
-```bash
-npm run build
-```
-
-Задеплойте содержимое папки `dist` на GitHub Pages.
-
-Сайт: https://irina0110.github.io/Leksa/
+Один раз в настройках репозитория:
+**Settings → Pages → Build and deployment → Source: GitHub Actions**
