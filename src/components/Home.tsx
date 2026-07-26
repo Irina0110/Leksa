@@ -23,6 +23,12 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy }: Props) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
+  const deleteSet = (setId: string, name: string) => {
+    if (!window.confirm(`Удалить сет «${name}» со всеми карточками?`)) return
+    store.deleteSet(setId)
+    setSelected((prev) => prev.filter((id) => id !== setId))
+  }
+
   return (
     <div className="screen home-screen">
       <header className="hero">
@@ -88,9 +94,14 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy }: Props) {
                       </span>
                     </span>
                   </button>
-                  <span className="set-chevron" aria-hidden>
-                    ›
-                  </span>
+                  <button
+                    type="button"
+                    className="icon-btn danger set-delete"
+                    aria-label={`Удалить сет ${set.name}`}
+                    onClick={() => deleteSet(set.id, set.name)}
+                  >
+                    ×
+                  </button>
                 </li>
               )
             })}

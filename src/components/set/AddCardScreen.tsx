@@ -40,6 +40,8 @@ export function AddCardScreen({ store, setId, onBack }: Props) {
       <AddCardForm
         sourceName={form.sourceName}
         targetName={form.targetName}
+        sourceLang={form.sourceLang}
+        targetLang={form.targetLang}
         front={form.front}
         back={form.back}
         translating={form.translating}

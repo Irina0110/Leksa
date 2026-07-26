@@ -57,6 +57,8 @@ export function useAddCard({ store, setId }: Options) {
 
   return {
     setName: set?.name ?? 'Сет',
+    sourceLang,
+    targetLang,
     sourceName: langLabel(sourceLang),
     targetName: langLabel(targetLang),
     front,

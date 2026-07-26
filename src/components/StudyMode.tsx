@@ -294,6 +294,8 @@ export function StudyMode({ setIds, store, onExit }: Props) {
           hint={hint}
           frontLabel={langLabel(current.sourceLang)}
           backLabel={langLabel(current.targetLang)}
+          sourceLang={current.sourceLang}
+          targetLang={current.targetLang}
         />
       )}
 

@@ -1,9 +1,12 @@
 import type { FormEvent } from 'react'
+import { SpeakButton } from '../SpeakButton'
 import type { TranslateDir } from './useAddCard'
 
 type Props = {
   sourceName: string
   targetName: string
+  sourceLang: string
+  targetLang: string
   front: string
   back: string
   translating: TranslateDir | null
@@ -18,6 +21,8 @@ type Props = {
 export function AddCardForm({
   sourceName,
   targetName,
+  sourceLang,
+  targetLang,
   front,
   back,
   translating,
@@ -32,7 +37,7 @@ export function AddCardForm({
     <form className="panel add-card-form" onSubmit={onSubmit}>
       <label className="field">
         <span>{sourceName}</span>
-        <div className="input-with-action">
+        <div className="input-with-actions">
           <input
             value={front}
             onChange={(e) => onFrontChange(e.target.value)}
@@ -40,6 +45,7 @@ export function AddCardForm({
             enterKeyHint="next"
             autoFocus
           />
+          <SpeakButton text={front} lang={sourceLang} />
           <button
             type="button"
             className="translate-btn"
@@ -53,13 +59,14 @@ export function AddCardForm({
 
       <label className="field">
         <span>{targetName}</span>
-        <div className="input-with-action">
+        <div className="input-with-actions">
           <input
             value={back}
             onChange={(e) => onBackChange(e.target.value)}
             placeholder="перевод"
             enterKeyHint="done"
           />
+          <SpeakButton text={back} lang={targetLang} />
           <button
             type="button"
             className="translate-btn"
