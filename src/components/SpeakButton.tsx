@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import { useState, type MouseEvent } from 'react'
 import { canSpeak, speakText } from '../speech'
 
 type Props = {
@@ -9,12 +9,20 @@ type Props = {
 }
 
 export function SpeakButton({ text, lang, className = '', label = 'Произнести' }: Props) {
+  const [busy, setBusy] = useState(false)
+
   if (!canSpeak()) return null
 
-  const onClick = (e: MouseEvent) => {
+  const onClick = async (e: MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    speakText(text, lang)
+    if (!text.trim() || busy) return
+    setBusy(true)
+    try {
+      await speakText(text, lang)
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -22,12 +30,12 @@ export function SpeakButton({ text, lang, className = '', label = 'Произн�
       type="button"
       className={`speak-btn ${className}`.trim()}
       onClick={onClick}
-      disabled={!text.trim()}
+      disabled={!text.trim() || busy}
       aria-label={label}
       title={label}
     >
       <span className="speak-icon" aria-hidden>
-        ♪
+        {busy ? '…' : '♪'}
       </span>
     </button>
   )

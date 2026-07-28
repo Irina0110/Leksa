@@ -29,6 +29,12 @@ export function langLabel(code: string): string {
   return LANGUAGES.find((l) => l.code === code)?.label ?? code.toUpperCase()
 }
 
+/** Коды для Google Translate / TTS */
+export function toGoogleLang(code: string): string {
+  if (code === 'zh-CN') return 'zh-CN'
+  return code
+}
+
 export class TranslateError extends Error {
   constructor(message: string) {
     super(message)
@@ -36,17 +42,11 @@ export class TranslateError extends Error {
   }
 }
 
-type MyMemoryResponse = {
-  responseStatus: number
-  responseData?: {
-    translatedText?: string
-  }
-  responseDetails?: string
-}
+type GoogleTranslatePayload = Array<Array<[string, ...unknown[]]> | unknown>
 
 /**
- * Перевод через MyMemory (бесплатно, без ключа).
- * @see https://mymemory.translated.net/doc/spec.php
+ * Перевод через Google Translate (client=gtx).
+ * Качество для турецкого и других языков заметно лучше MyMemory.
  */
 export async function translateText(
   text: string,
@@ -58,9 +58,12 @@ export async function translateText(
   if (!trimmed) throw new TranslateError('Введите текст для перевода')
   if (from === to) throw new TranslateError('Выберите разные языки')
 
-  const url = new URL('https://api.mymemory.translated.net/get')
+  const url = new URL('https://translate.googleapis.com/translate_a/single')
+  url.searchParams.set('client', 'gtx')
+  url.searchParams.set('sl', toGoogleLang(from))
+  url.searchParams.set('tl', toGoogleLang(to))
+  url.searchParams.set('dt', 't')
   url.searchParams.set('q', trimmed)
-  url.searchParams.set('langpair', `${from}|${to}`)
 
   let res: Response
   try {
@@ -73,19 +76,23 @@ export async function translateText(
     throw new TranslateError('Сервис перевода недоступен')
   }
 
-  const data = (await res.json()) as MyMemoryResponse
-
-  if (data.responseStatus !== 200 || !data.responseData?.translatedText) {
-    const detail = data.responseDetails || 'Не удалось перевести'
-    throw new TranslateError(detail)
+  let data: GoogleTranslatePayload
+  try {
+    data = (await res.json()) as GoogleTranslatePayload
+  } catch {
+    throw new TranslateError('Не удалось прочитать ответ переводчика')
   }
 
-  const translated = data.responseData.translatedText.trim()
-
-  // MyMemory иногда возвращает предупреждение вместо перевода при лимитах
-  if (/^MYMEMORY WARNING/i.test(translated)) {
-    throw new TranslateError('Лимит бесплатного перевода на сегодня исчерпан')
+  const segments = data[0]
+  if (!Array.isArray(segments) || segments.length === 0) {
+    throw new TranslateError('Не удалось перевести')
   }
 
+  const translated = segments
+    .map((part) => (Array.isArray(part) && typeof part[0] === 'string' ? part[0] : ''))
+    .join('')
+    .trim()
+
+  if (!translated) throw new TranslateError('Не удалось перевести')
   return translated
 }
