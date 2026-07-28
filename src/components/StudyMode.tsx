@@ -55,6 +55,19 @@ export function StudyMode({ setIds, store, onExit }: Props) {
   const weightsRef = useRef<Map<string, number>>(new Map())
   const indexRef = useRef(0)
   const queueRef = useRef<QueueItem[]>([])
+  const sessionStartedAt = useRef(Date.now())
+  const endedRef = useRef(false)
+
+  const finishSession = useCallback(() => {
+    if (endedRef.current) return
+    endedRef.current = true
+    store.recordSessionEnd(Date.now() - sessionStartedAt.current)
+  }, [store])
+
+  const exitStudy = useCallback(() => {
+    finishSession()
+    onExit()
+  }, [finishSession, onExit])
 
   const rebuild = useCallback(
     (source: WordCard[]) => {
@@ -84,6 +97,11 @@ export function StudyMode({ setIds, store, onExit }: Props) {
     setQueue(next)
     setIndex(0)
     setFlipped(false)
+    if (cards.length > 0) store.recordSessionStart()
+    sessionStartedAt.current = Date.now()
+    return () => {
+      finishSession()
+    }
     // intentionally only on mount with initial cards snapshot
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -142,6 +160,9 @@ export function StudyMode({ setIds, store, onExit }: Props) {
             : hardenWeight(weightsRef.current.get(item.card.id) ?? item.card.weight)
         weightsRef.current.set(item.card.id, nextWeight)
         store.updateCardWeight(item.card.id, nextWeight)
+        store.recordReview(direction === 'up' ? 'easy' : 'hard')
+      } else {
+        store.recordReview('nav')
       }
 
       window.setTimeout(() => {
@@ -174,12 +195,12 @@ export function StudyMode({ setIds, store, onExit }: Props) {
         e.preventDefault()
         if (!busyRef.current) setFlipped((f) => !f)
       } else if (e.key === 'Escape') {
-        onExit()
+        exitStudy()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [applySwipe, onExit])
+  }, [applySwipe, exitStudy])
 
   const onTouchStart = (e: TouchEvent) => {
     if (busyRef.current) return
@@ -233,7 +254,7 @@ export function StudyMode({ setIds, store, onExit }: Props) {
     return (
       <div className="screen study-screen">
         <header className="top-bar">
-          <button type="button" className="back-btn" onClick={onExit} aria-label="Закрыть">
+          <button type="button" className="back-btn" onClick={exitStudy} aria-label="Закрыть">
             <span aria-hidden>‹</span>
             Закрыть
           </button>
@@ -242,7 +263,7 @@ export function StudyMode({ setIds, store, onExit }: Props) {
         </header>
         <div className="empty-state">
           <p>В выбранных сетах нет карточек.</p>
-          <button type="button" className="primary-btn" onClick={onExit}>
+          <button type="button" className="primary-btn" onClick={exitStudy}>
             Назад
           </button>
         </div>
@@ -258,7 +279,7 @@ export function StudyMode({ setIds, store, onExit }: Props) {
       onTouchEnd={onTouchEnd}
     >
       <header className="top-bar">
-        <button type="button" className="back-btn" onClick={onExit} aria-label="Выйти">
+        <button type="button" className="back-btn" onClick={exitStudy} aria-label="Выйти">
           <span aria-hidden>‹</span>
           Выйти
         </button>

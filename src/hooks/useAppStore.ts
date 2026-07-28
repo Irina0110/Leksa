@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { loadData, saveData } from '../storage'
+import { loadData, saveData, upsertDay } from '../storage'
 import type { AppData, WordCard, WordSet } from '../types'
 import {
   DEFAULT_SOURCE_LANG,
@@ -33,7 +33,7 @@ export function useAppStore() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }
-      setData((prev) => ({ sets: [set, ...prev.sets] }))
+      setData((prev) => ({ ...prev, sets: [set, ...prev.sets] }))
       return set
     },
     [],
@@ -45,6 +45,7 @@ export function useAppStore() {
       patch: Partial<Pick<WordSet, 'name' | 'cards' | 'sourceLang' | 'targetLang'>>,
     ) => {
       setData((prev) => ({
+        ...prev,
         sets: prev.sets.map((s) =>
           s.id === setId ? { ...s, ...patch, updatedAt: Date.now() } : s,
         ),
@@ -54,7 +55,7 @@ export function useAppStore() {
   )
 
   const deleteSet = useCallback((setId: string) => {
-    setData((prev) => ({ sets: prev.sets.filter((s) => s.id !== setId) }))
+    setData((prev) => ({ ...prev, sets: prev.sets.filter((s) => s.id !== setId) }))
   }, [])
 
   const addCard = useCallback((setId: string, front: string, back: string) => {
@@ -65,6 +66,7 @@ export function useAppStore() {
       weight: DEFAULT_WEIGHT,
     }
     setData((prev) => ({
+      ...prev,
       sets: prev.sets.map((s) =>
         s.id === setId
           ? { ...s, cards: [...s.cards, card], updatedAt: Date.now() }
@@ -76,6 +78,7 @@ export function useAppStore() {
   const updateCard = useCallback(
     (setId: string, cardId: string, patch: Partial<Pick<WordCard, 'front' | 'back'>>) => {
       setData((prev) => ({
+        ...prev,
         sets: prev.sets.map((s) =>
           s.id !== setId
             ? s
@@ -92,6 +95,7 @@ export function useAppStore() {
 
   const deleteCard = useCallback((setId: string, cardId: string) => {
     setData((prev) => ({
+      ...prev,
       sets: prev.sets.map((s) =>
         s.id !== setId
           ? s
@@ -106,10 +110,62 @@ export function useAppStore() {
 
   const updateCardWeight = useCallback((cardId: string, weight: number) => {
     setData((prev) => ({
+      ...prev,
       sets: prev.sets.map((s) => ({
         ...s,
         cards: s.cards.map((c) => (c.id === cardId ? { ...c, weight } : c)),
       })),
+    }))
+  }, [])
+
+  const recordSessionStart = useCallback(() => {
+    setData((prev) => ({
+      ...prev,
+      stats: {
+        ...prev.stats,
+        sessions: prev.stats.sessions + 1,
+      },
+    }))
+  }, [])
+
+  const recordSessionEnd = useCallback((durationMs: number) => {
+    const ms = Math.max(0, Math.round(durationMs))
+    if (ms < 1000) return
+    setData((prev) => ({
+      ...prev,
+      stats: {
+        ...prev.stats,
+        totalMs: prev.stats.totalMs + ms,
+      },
+    }))
+  }, [])
+
+  const recordReview = useCallback((kind: 'nav' | 'easy' | 'hard') => {
+    setData((prev) => {
+      const stats = { ...prev.stats }
+      stats.reviews += 1
+      if (kind === 'easy') stats.easyMarks += 1
+      if (kind === 'hard') stats.hardMarks += 1
+      stats.days = upsertDay(stats.days, {
+        reviews: 1,
+        easy: kind === 'easy' ? 1 : 0,
+        hard: kind === 'hard' ? 1 : 0,
+      })
+      return { ...prev, stats }
+    })
+  }, [])
+
+  const resetStats = useCallback(() => {
+    setData((prev) => ({
+      ...prev,
+      stats: {
+        sessions: 0,
+        reviews: 0,
+        easyMarks: 0,
+        hardMarks: 0,
+        totalMs: 0,
+        days: [],
+      },
     }))
   }, [])
 
@@ -120,6 +176,7 @@ export function useAppStore() {
 
   return {
     sets: data.sets,
+    stats: data.stats,
     createSet,
     updateSet,
     deleteSet,
@@ -127,6 +184,10 @@ export function useAppStore() {
     updateCard,
     deleteCard,
     updateCardWeight,
+    recordSessionStart,
+    recordSessionEnd,
+    recordReview,
+    resetStats,
     getSet,
   }
 }

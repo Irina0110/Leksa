@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Home } from './components/Home'
+import { StatsPage } from './components/StatsPage'
 import { AddCardScreen, SetEditor } from './components/set'
 import { StudyMode } from './components/StudyMode'
 import { useAppStore } from './hooks/useAppStore'
@@ -17,6 +18,10 @@ export default function App() {
         onExit={() => setView({ name: 'home' })}
       />
     )
+  }
+
+  if (view.name === 'stats') {
+    return <StatsPage store={store} onBack={() => setView({ name: 'home' })} />
   }
 
   if (view.name === 'add-card') {
@@ -47,6 +52,7 @@ export default function App() {
       onCreateSet={() => setView({ name: 'edit-set', setId: null })}
       onEditSet={(setId) => setView({ name: 'edit-set', setId })}
       onStartStudy={(setIds) => setView({ name: 'study', setIds })}
+      onOpenStats={() => setView({ name: 'stats' })}
     />
   )
 }
