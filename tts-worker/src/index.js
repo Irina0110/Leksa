@@ -67,12 +67,12 @@ export default {
 }
 
 function corsHeaders(origin) {
+  // Всегда * — проще для PWA / Safari (Origin: null и т.п.)
   return {
-    'Access-Control-Allow-Origin': origin === 'null' ? '*' : origin || '*',
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': '*',
     'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
   }
 }
 

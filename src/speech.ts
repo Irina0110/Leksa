@@ -1,10 +1,12 @@
 import { toGoogleLang } from './translate'
 
-const SILENT_WAV =
-  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+/** Прод-прокси Google TTS (Cloudflare Worker). Не оставлять пустым в CI. */
+const DEFAULT_TTS_PROXY = 'https://leksa-tts.octagonal-polish.workers.dev'
+
+const SILENT_MP3 =
+  'data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAA5TEFNRTMuMTAwAa8AAAAAAAAAABUgJAUHQQAB9gAAAYYzQctlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 
 let sharedAudio: HTMLAudioElement | null = null
-let objectUrl: string | null = null
 let unlocked = false
 let speakGeneration = 0
 
@@ -43,61 +45,42 @@ function getSharedAudio(): HTMLAudioElement {
   return el
 }
 
-function revokeObjectUrl(): void {
-  if (objectUrl) {
-    URL.revokeObjectURL(objectUrl)
-    objectUrl = null
-  }
-}
-
 function clearHandlers(el: HTMLAudioElement): void {
   el.onplaying = null
   el.onended = null
   el.onerror = null
 }
 
-/**
- * Разблокирует аудио на iPhone: play() того же элемента, что потом озвучивает слова.
- * Вызывать в user gesture (pointerdown).
- */
+/** Разблокировка аудио в том же user gesture (обязательно на iPhone). */
 export function unlockSpeech(): void {
   if (typeof window === 'undefined') return
   preferPlaybackSession()
   const el = getSharedAudio()
-  if (unlocked) {
-    // Повторный жест — «подогрев» play(), чтобы следующий async play не блокировался
-    try {
-      if (el.paused) {
-        el.src = SILENT_WAV
-        void el.play().then(() => {
-          el.pause()
-        })
-      }
-    } catch {
-      // ignore
-    }
-    return
-  }
-  unlocked = true
   try {
-    el.src = SILENT_WAV
     el.volume = 1
-    void el.play().then(() => {
-      el.pause()
+    // Не ставим src заново каждый раз — только если ещё не разблокировали
+    if (!unlocked) {
+      el.src = SILENT_MP3
+      unlocked = true
+    }
+    void el.play().catch(() => {
+      // ignore
     })
   } catch {
     // ignore
   }
 }
 
-/** База прокси Google TTS (same-origin в dev, Cloudflare Worker в prod). */
 export function getTtsProxyBase(): string {
   const fromEnv = (import.meta.env.VITE_TTS_PROXY_URL as string | undefined)?.trim()
   if (fromEnv) return fromEnv.replace(/\/$/, '')
-
-  const base = import.meta.env.BASE_URL || '/'
-  const normalized = base.endsWith('/') ? base : `${base}/`
-  return `${normalized}api/tts`
+  // В dev Vite проксирует /Leksa/api/tts; в prod — Cloudflare Worker
+  if (import.meta.env.DEV) {
+    const base = import.meta.env.BASE_URL || '/'
+    const normalized = base.endsWith('/') ? base : `${base}/`
+    return `${normalized}api/tts`
+  }
+  return DEFAULT_TTS_PROXY
 }
 
 function buildProxyUrl(text: string, langCode: string): string {
@@ -105,39 +88,34 @@ function buildProxyUrl(text: string, langCode: string): string {
   const url = new URL(base, window.location.origin)
   url.searchParams.set('q', text.slice(0, 180))
   url.searchParams.set('tl', toGoogleLang(langCode))
+  // обход кэша Safari
+  url.searchParams.set('_', String(Date.now()))
   return url.toString()
 }
 
-function buildDirectGoogleUrl(text: string, langCode: string): string {
-  const url = new URL('https://translate.googleapis.com/translate_tts')
-  url.searchParams.set('ie', 'UTF-8')
-  url.searchParams.set('client', 'gtx')
-  url.searchParams.set('tl', toGoogleLang(langCode))
-  url.searchParams.set('q', text.slice(0, 180))
-  return url.toString()
-}
+/**
+ * Google Translate TTS через Cloudflare-прокси.
+ * На iPhone play() вызывается синхронно в жесте с src=URL прокси (без await fetch),
+ * иначе Safari теряет user gesture и молчит.
+ */
+export function speakText(text: string, langCode: string): Promise<void> {
+  const value = text.trim()
+  if (!value || !canSpeak()) return Promise.resolve()
 
-async function fetchGoogleAudioBlob(text: string, langCode: string): Promise<Blob> {
-  const proxyUrl = buildProxyUrl(text, langCode)
-  const res = await fetch(proxyUrl, {
-    method: 'GET',
-    cache: 'no-store',
-    credentials: 'omit',
-  })
-  if (!res.ok) {
-    throw new Error(`TTS proxy ${res.status}`)
-  }
-  const blob = await res.blob()
-  if (!blob.size) throw new Error('Empty TTS')
-  // Иногда proxy отдаёт JSON с ошибкой
-  const type = blob.type || ''
-  if (type.includes('json') || type.includes('text')) {
-    throw new Error('TTS proxy returned non-audio')
-  }
-  return blob.type ? blob : new Blob([blob], { type: 'audio/mpeg' })
-}
+  preferPlaybackSession()
 
-function playElement(el: HTMLAudioElement, gen: number): Promise<void> {
+  const gen = ++speakGeneration
+  const el = getSharedAudio()
+  clearHandlers(el)
+
+  const src = buildProxyUrl(value, langCode)
+  el.volume = 1
+  el.src = src
+
+  // КРИТИЧНО: play() сразу в том же синхронном стеке, что pointerdown/click
+  const playPromise = el.play()
+  unlocked = true
+
   return new Promise((resolve) => {
     let settled = false
     const done = () => {
@@ -152,77 +130,26 @@ function playElement(el: HTMLAudioElement, gen: number): Promise<void> {
     }
     el.onerror = () => done()
 
-    const p = el.play()
-    if (p) {
-      p.catch(() => done())
-    }
-    window.setTimeout(done, 12000)
-  })
-}
-
-/**
- * Google Translate TTS.
- * На iPhone: сначала unlock в жесте, затем fetch через proxy → blob URL (same-origin) → play.
- * Прямой URL Google в PWA не работает — ITP/Safari режет чужой audio.
- */
-export function speakText(text: string, langCode: string): Promise<void> {
-  const value = text.trim()
-  if (!value || !canSpeak()) return Promise.resolve()
-
-  preferPlaybackSession()
-  unlockSpeech()
-
-  const gen = ++speakGeneration
-  const el = getSharedAudio()
-  clearHandlers(el)
-  revokeObjectUrl()
-
-  try {
-    el.pause()
-  } catch {
-    // ignore
-  }
-
-  el.volume = 1
-
-  // Синхронно в жесте: держим элемент «живым»
-  try {
-    if (el.paused) {
-      el.src = SILENT_WAV
-      void el.play().then(() => {
-        if (gen === speakGeneration) el.pause()
+    if (playPromise) {
+      playPromise.catch(() => {
+        // Иногда iOS отклоняет первый play до буфера — повторяем после canplay
+        if (gen !== speakGeneration) {
+          done()
+          return
+        }
+        const retry = () => {
+          void el.play().catch(() => done())
+        }
+        el.addEventListener('canplay', retry, { once: true })
+        window.setTimeout(() => {
+          el.removeEventListener('canplay', retry)
+          done()
+        }, 4000)
       })
     }
-  } catch {
-    // ignore
-  }
 
-  return (async () => {
-    if (gen !== speakGeneration) return
-
-    try {
-      const blob = await fetchGoogleAudioBlob(value, langCode)
-      if (gen !== speakGeneration) return
-
-      revokeObjectUrl()
-      objectUrl = URL.createObjectURL(blob)
-      clearHandlers(el)
-      el.src = objectUrl
-      await playElement(el, gen)
-      return
-    } catch {
-      // Proxy недоступен (часто на gh-pages без Worker) — пробуем прямой URL (desktop / Safari tab)
-      if (gen !== speakGeneration) return
-      try {
-        clearHandlers(el)
-        revokeObjectUrl()
-        el.src = buildDirectGoogleUrl(value, langCode)
-        await playElement(el, gen)
-      } catch {
-        // silence — без системного голоса, нужна именно Google-озвучка
-      }
-    }
-  })()
+    window.setTimeout(done, 15000)
+  })
 }
 
 export function initSpeech(): void {

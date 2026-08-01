@@ -41,8 +41,8 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # URL воркера, напр. https://leksa-tts.<subdomain>.workers.dev
-          VITE_TTS_PROXY_URL: ${{ vars.VITE_TTS_PROXY_URL }}
+          # Не передавать пустую строку — она перебивает .env.production
+          VITE_TTS_PROXY_URL: ${{ vars.VITE_TTS_PROXY_URL || 'https://leksa-tts.octagonal-polish.workers.dev' }}
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
