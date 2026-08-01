@@ -51,37 +51,41 @@ export function SetPickerSheet({
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sheet-handle" aria-hidden />
-        <h2 className="sheet-title">{title}</h2>
+        <div className="sheet-header">
+          <div className="sheet-handle" aria-hidden />
+          <h2 className="sheet-title">{title}</h2>
+        </div>
 
-        {options.length === 0 ? (
-          <p className="muted sheet-empty">Нет других сетов</p>
-        ) : (
-          <ul className="sheet-list">
-            {options.map((set) => {
-              const on = selected.includes(set.id)
-              return (
-                <li key={set.id}>
-                  <button
-                    type="button"
-                    className={`sheet-option ${on ? 'is-on' : ''}`}
-                    onClick={() => toggle(set.id)}
-                  >
-                    <span className="sheet-check" aria-hidden>
-                      {on ? '✓' : ''}
-                    </span>
-                    <span className="sheet-option-body">
-                      <strong>{set.name}</strong>
-                      <span className="muted">
-                        {set.sourceLang.toUpperCase()} → {set.targetLang.toUpperCase()}
+        <div className="sheet-body">
+          {options.length === 0 ? (
+            <p className="muted sheet-empty">Нет других сетов</p>
+          ) : (
+            <ul className="sheet-list">
+              {options.map((set) => {
+                const on = selected.includes(set.id)
+                return (
+                  <li key={set.id}>
+                    <button
+                      type="button"
+                      className={`sheet-option ${on ? 'is-on' : ''}`}
+                      onClick={() => toggle(set.id)}
+                    >
+                      <span className="sheet-check" aria-hidden>
+                        {on ? '✓' : ''}
                       </span>
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+                      <span className="sheet-option-body">
+                        <strong>{set.name}</strong>
+                        <span className="muted">
+                          {set.sourceLang.toUpperCase()} → {set.targetLang.toUpperCase()}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
 
         <div className="sheet-actions">
           <button type="button" className="ghost-btn" onClick={onClose}>
