@@ -25,7 +25,7 @@ export function SpeakButton({ text, lang, className = '', label = 'Произн�
     unlockSpeech()
     setBusy(true)
 
-    // Важно: speakText стартует речь синхронно внутри этого жеста
+    // speakText вызывает audio.play() синхронно — критично для iOS PWA
     void speakText(text, lang).finally(() => setBusy(false))
   }
 
@@ -34,7 +34,8 @@ export function SpeakButton({ text, lang, className = '', label = 'Произн�
       type="button"
       className={`speak-btn ${className}`.trim()}
       onPointerDown={(e) => {
-        // Останавливаем свайп обучения, но не блокируем сам жест кнопки
+        // Не даём свайпу обучения перехватить жест, но не стартуем звук здесь —
+        // play() надёжнее на click (полный user gesture на iOS)
         e.stopPropagation()
       }}
       onClick={start}

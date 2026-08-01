@@ -40,6 +40,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Не кэшировать Google Translate / TTS — нужны живые ответы с телефона
+        navigateFallbackDenylist: [/^\/api/],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/translate\.(googleapis|google)\.com\/.*/i,
+            handler: 'NetworkOnly',
+          },
+        ],
       },
     }),
   ],
