@@ -31,21 +31,10 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Prepare docs folder
-        run: |
-          rm -rf docs
-          mkdir docs
-          cp -R dist/. docs/
-          touch docs/.nojekyll
-
-      - name: Commit docs and push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs
-          if git diff --staged --quiet; then
-            echo "No docs changes"
-            exit 0
-          fi
-          git commit -m "Update docs for GitHub Pages"
-          git push
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          force_orphan: true
+          keep_files: false
