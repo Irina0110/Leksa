@@ -1,5 +1,5 @@
 import { todayKey } from './storage'
-import type { DayActivity, StudyStats, WordSet } from './types'
+import type { DayActivity, StudyStats, WordCard, WordSet } from './types'
 import { DEFAULT_WEIGHT, MAX_WEIGHT, MIN_WEIGHT } from './types'
 
 export type DerivedStats = {
@@ -45,8 +45,11 @@ export function computeStreak(days: DayActivity[]): number {
   return streak
 }
 
-export function deriveStats(sets: WordSet[], stats: StudyStats): DerivedStats {
-  const cards = sets.flatMap((s) => s.cards)
+export function deriveStats(
+  sets: WordSet[],
+  cards: WordCard[],
+  stats: StudyStats,
+): DerivedStats {
   const easyCards = cards.filter((c) => (c.weight ?? DEFAULT_WEIGHT) <= MIN_WEIGHT).length
   const hardCards = cards.filter((c) => (c.weight ?? DEFAULT_WEIGHT) >= MAX_WEIGHT - 1).length
   const mediumCards = Math.max(0, cards.length - easyCards - hardCards)

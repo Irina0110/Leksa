@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import type { AppStore } from '../../hooks/useAppStore'
+import type { AddCardResult } from '../../types'
 import { langLabel, translateText } from '../../translate'
 
 export type TranslateDir = 'to-known' | 'to-learning'
@@ -18,6 +19,7 @@ export function useAddCard({ store, setId }: Options) {
   const [back, setBack] = useState('')
   const [translating, setTranslating] = useState<TranslateDir | null>(null)
   const [translateError, setTranslateError] = useState<string | null>(null)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
   const runTranslate = async (dir: TranslateDir) => {
     setTranslateError(null)
@@ -45,14 +47,29 @@ export function useAddCard({ store, setId }: Options) {
     }
   }
 
+  const messageFor = (result: AddCardResult): string | null => {
+    if (result.status === 'linked') {
+      return 'Слово уже было в библиотеке — добавлено в этот сет без дубликата'
+    }
+    if (result.status === 'exists') {
+      return 'Это слово уже есть в этом сете'
+    }
+    return null
+  }
+
   const submit = (e: FormEvent): boolean => {
     e.preventDefault()
     if (!front.trim() || !back.trim()) return false
-    store.addCard(setId, front, back)
+    const result = store.addCard(setId, front, back)
+    setTranslateError(null)
+    if (result.status === 'exists') {
+      setStatusMessage(messageFor(result))
+      return false
+    }
     setFront('')
     setBack('')
-    setTranslateError(null)
-    return true
+    setStatusMessage(messageFor(result))
+    return result.status === 'created' || result.status === 'linked'
   }
 
   return {
@@ -67,7 +84,9 @@ export function useAddCard({ store, setId }: Options) {
     setBack,
     translating,
     translateError,
+    statusMessage,
     clearTranslateError: () => setTranslateError(null),
+    clearStatusMessage: () => setStatusMessage(null),
     runTranslate,
     submit,
   }

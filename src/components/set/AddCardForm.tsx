@@ -11,6 +11,7 @@ type Props = {
   back: string
   translating: TranslateDir | null
   translateError: string | null
+  statusMessage?: string | null
   onFrontChange: (value: string) => void
   onBackChange: (value: string) => void
   onTranslate: (dir: TranslateDir) => void
@@ -27,6 +28,7 @@ export function AddCardForm({
   back,
   translating,
   translateError,
+  statusMessage,
   onFrontChange,
   onBackChange,
   onTranslate,
@@ -79,6 +81,7 @@ export function AddCardForm({
       </label>
 
       {translateError && <p className="form-error">{translateError}</p>}
+      {statusMessage && !translateError && <p className="form-hint">{statusMessage}</p>}
 
       <button type="submit" className="accent-btn" disabled={!front.trim() || !back.trim()}>
         {submitLabel}

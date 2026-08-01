@@ -9,7 +9,10 @@ type Props = {
 }
 
 export function StatsPage({ store, onBack }: Props) {
-  const s = useMemo(() => deriveStats(store.sets, store.stats), [store.sets, store.stats])
+  const s = useMemo(
+    () => deriveStats(store.sets, store.cards, store.stats),
+    [store.sets, store.cards, store.stats],
+  )
 
   return (
     <div className="screen stats-screen">

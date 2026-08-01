@@ -13,9 +13,12 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats 
   const [selected, setSelected] = useState<string[]>([])
 
   const totalSelectedCards = useMemo(() => {
-    return store.sets
-      .filter((s) => selected.includes(s.id))
-      .reduce((sum, s) => sum + s.cards.length, 0)
+    const ids = new Set<string>()
+    for (const s of store.sets) {
+      if (!selected.includes(s.id)) continue
+      for (const id of s.cardIds) ids.add(id)
+    }
+    return ids.size
   }, [store.sets, selected])
 
   const canStudy = selected.length > 0 && totalSelectedCards > 0
@@ -25,7 +28,12 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats 
   }
 
   const deleteSet = (setId: string, name: string) => {
-    if (!window.confirm(`Удалить сет «${name}» со всеми карточками?`)) return
+    if (
+      !window.confirm(
+        `Удалить сет «${name}»? Слова останутся в других сетах, если они туда добавлены.`,
+      )
+    )
+      return
     store.deleteSet(setId)
     setSelected((prev) => prev.filter((id) => id !== setId))
   }
@@ -71,6 +79,7 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats 
           <ul className="set-list">
             {store.sets.map((set) => {
               const isOn = selected.includes(set.id)
+              const count = set.cardIds.length
               return (
                 <li key={set.id} className={`set-item ${isOn ? 'is-selected' : ''}`}>
                   <label className="set-check">
@@ -78,7 +87,7 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats 
                       type="checkbox"
                       checked={isOn}
                       onChange={() => toggle(set.id)}
-                      disabled={set.cards.length === 0}
+                      disabled={count === 0}
                     />
                     <span className="checkmark" />
                   </label>
@@ -92,9 +101,7 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats 
                         ·
                       </span>
                       <span>
-                        {set.cards.length === 0
-                          ? 'нет карточек'
-                          : `${set.cards.length} ${pluralCards(set.cards.length)}`}
+                        {count === 0 ? 'нет карточек' : `${count} ${pluralCards(count)}`}
                       </span>
                     </span>
                   </button>

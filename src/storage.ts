@@ -1,19 +1,14 @@
-import type { AppData, DayActivity, StudyStats, WordSet } from './types'
-import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG, EMPTY_STATS } from './types'
+import type { AppData, DayActivity, StudyStats, WordCard, WordSet } from './types'
+import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG, EMPTY_STATS, cardKey } from './types'
 
 const STORAGE_KEY = 'wordsapp-data-v1'
 const MAX_DAY_HISTORY = 90
 
-function normalizeSet(raw: Partial<WordSet> & { id: string; name: string }): WordSet {
-  return {
-    id: raw.id,
-    name: raw.name,
-    sourceLang: raw.sourceLang || DEFAULT_SOURCE_LANG,
-    targetLang: raw.targetLang || DEFAULT_TARGET_LANG,
-    cards: Array.isArray(raw.cards) ? raw.cards : [],
-    createdAt: raw.createdAt ?? Date.now(),
-    updatedAt: raw.updatedAt ?? Date.now(),
-  }
+type LegacySet = Partial<WordSet> & {
+  id: string
+  name: string
+  cards?: WordCard[]
+  cardIds?: string[]
 }
 
 function normalizeStats(raw: Partial<StudyStats> | undefined): StudyStats {
@@ -38,20 +33,95 @@ function normalizeStats(raw: Partial<StudyStats> | undefined): StudyStats {
   }
 }
 
+/** Миграция: встроенные cards → общая библиотека + cardIds, дедуп по front/back */
+function migrateToLibrary(parsed: {
+  sets?: LegacySet[]
+  cards?: WordCard[]
+}): { sets: WordSet[]; cards: WordCard[] } {
+  const library: WordCard[] = []
+  const keyToId = new Map<string, string>()
+
+  const upsert = (card: Partial<WordCard> & { front: string; back: string }): string => {
+    const front = card.front.trim()
+    const back = card.back.trim()
+    const key = cardKey(front, back)
+    const existingId = keyToId.get(key)
+    if (existingId) {
+      const existing = library.find((c) => c.id === existingId)
+      if (existing && typeof card.weight === 'number') {
+        existing.weight = Math.max(existing.weight, card.weight)
+      }
+      return existingId
+    }
+    const id = card.id || crypto.randomUUID()
+    keyToId.set(key, id)
+    library.push({
+      id,
+      front,
+      back,
+      weight: typeof card.weight === 'number' ? card.weight : 2,
+    })
+    return id
+  }
+
+  // Сначала существующая библиотека (новый формат)
+  if (Array.isArray(parsed.cards)) {
+    for (const c of parsed.cards) {
+      if (c?.front && c?.back) upsert(c)
+    }
+  }
+
+  const sets: WordSet[] = (parsed.sets ?? []).map((raw) => {
+    const cardIds: string[] = []
+    const pushId = (id: string) => {
+      if (!cardIds.includes(id)) cardIds.push(id)
+    }
+
+    if (Array.isArray(raw.cards)) {
+      for (const c of raw.cards) {
+        if (c?.front && c?.back) pushId(upsert(c))
+      }
+    }
+    if (Array.isArray(raw.cardIds)) {
+      for (const id of raw.cardIds) {
+        if (typeof id === 'string' && library.some((c) => c.id === id)) pushId(id)
+      }
+    }
+
+    return {
+      id: raw.id,
+      name: raw.name,
+      sourceLang: raw.sourceLang || DEFAULT_SOURCE_LANG,
+      targetLang: raw.targetLang || DEFAULT_TARGET_LANG,
+      cardIds,
+      createdAt: raw.createdAt ?? Date.now(),
+      updatedAt: raw.updatedAt ?? Date.now(),
+    }
+  })
+
+  // Убрать карточки, на которые никто не ссылается (после чистки битых id)
+  const used = new Set(sets.flatMap((s) => s.cardIds))
+  const cards = library.filter((c) => used.has(c.id))
+
+  return { sets, cards }
+}
+
 export function loadData(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { sets: [], stats: { ...EMPTY_STATS, days: [] } }
-    const parsed = JSON.parse(raw) as Partial<AppData>
+    if (!raw) return { sets: [], cards: [], stats: { ...EMPTY_STATS, days: [] } }
+    const parsed = JSON.parse(raw) as Partial<AppData> & { sets?: LegacySet[] }
     if (!parsed || !Array.isArray(parsed.sets)) {
-      return { sets: [], stats: { ...EMPTY_STATS, days: [] } }
+      return { sets: [], cards: [], stats: { ...EMPTY_STATS, days: [] } }
     }
+    const { sets, cards } = migrateToLibrary(parsed)
     return {
-      sets: parsed.sets.map((s) => normalizeSet(s)),
+      sets,
+      cards,
       stats: normalizeStats(parsed.stats),
     }
   } catch {
-    return { sets: [], stats: { ...EMPTY_STATS, days: [] } }
+    return { sets: [], cards: [], stats: { ...EMPTY_STATS, days: [] } }
   }
 }
 

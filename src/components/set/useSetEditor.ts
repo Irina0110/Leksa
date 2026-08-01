@@ -70,8 +70,8 @@ export function useSetEditor({ store, setId, onCreated }: Options) {
   const cancelEditCard = () => setEditingId(null)
 
   const saveEditCard = (cardId: string) => {
-    if (!setId || !editFront.trim() || !editBack.trim()) return
-    store.updateCard(setId, cardId, {
+    if (!editFront.trim() || !editBack.trim()) return
+    store.updateCard(cardId, {
       front: editFront.trim(),
       back: editBack.trim(),
     })
@@ -84,7 +84,12 @@ export function useSetEditor({ store, setId, onCreated }: Options) {
 
   const deleteSet = () => {
     if (!setId) return false
-    if (!window.confirm('Удалить этот сет со всеми карточками?')) return false
+    if (
+      !window.confirm(
+        'Удалить этот сет? Слова останутся в других сетах, если они туда добавлены.',
+      )
+    )
+      return false
     store.deleteSet(setId)
     return true
   }
@@ -100,7 +105,7 @@ export function useSetEditor({ store, setId, onCreated }: Options) {
     return id
   }
 
-  const cards = (setId ? store.getSet(setId)?.cards : existing?.cards) ?? []
+  const cards = setId ? store.getCardsForSet(setId) : []
 
   return {
     title: setId ? 'Сет' : 'Новый сет',

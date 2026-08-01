@@ -71,7 +71,7 @@ export function CardListItem({
       <button
         type="button"
         className="icon-btn danger"
-        aria-label="Удалить карточку"
+        aria-label="Убрать из сета"
         onClick={onDelete}
       >
         ×

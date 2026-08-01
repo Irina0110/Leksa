@@ -17,7 +17,8 @@ export type WordSet = {
   sourceLang: LangCode
   /** Код известного языка (ISO 639-1) */
   targetLang: LangCode
-  cards: WordCard[]
+  /** Ссылки на карточки в общей библиотеке */
+  cardIds: string[]
   createdAt: number
   updatedAt: number
 }
@@ -43,8 +44,15 @@ export type StudyStats = {
 
 export type AppData = {
   sets: WordSet[]
+  /** Общая библиотека слов (без дубликатов) */
+  cards: WordCard[]
   stats: StudyStats
 }
+
+export type AddCardResult =
+  | { status: 'created'; cardId: string }
+  | { status: 'linked'; cardId: string }
+  | { status: 'exists'; cardId: string }
 
 export type View =
   | { name: 'home' }
@@ -66,4 +74,8 @@ export const EMPTY_STATS: StudyStats = {
   hardMarks: 0,
   totalMs: 0,
   days: [],
+}
+
+export function cardKey(front: string, back: string): string {
+  return `${front.trim().toLowerCase()}||${back.trim().toLowerCase()}`
 }

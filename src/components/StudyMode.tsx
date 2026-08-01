@@ -22,14 +22,21 @@ type QueueItem = {
 export function StudyMode({ setIds, store, onExit }: Props) {
   const studyCards = useMemo(() => {
     const selected = store.sets.filter((s) => setIds.includes(s.id))
-    return selected.flatMap((s) =>
-      s.cards.map((card) => ({
-        card,
-        sourceLang: s.sourceLang,
-        targetLang: s.targetLang,
-      })),
-    )
-  }, [store.sets, setIds])
+    const seen = new Set<string>()
+    const result: { card: WordCard; sourceLang: string; targetLang: string }[] = []
+    for (const s of selected) {
+      for (const card of store.getCardsForSet(s.id)) {
+        if (seen.has(card.id)) continue
+        seen.add(card.id)
+        result.push({
+          card,
+          sourceLang: s.sourceLang,
+          targetLang: s.targetLang,
+        })
+      }
+    }
+    return result
+  }, [store.sets, store.cards, store.getCardsForSet, setIds])
 
   const cards = useMemo(() => studyCards.map((c) => c.card), [studyCards])
   const metaById = useMemo(() => {

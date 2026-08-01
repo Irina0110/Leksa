@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadData, saveData, upsertDay } from '../storage'
-import type { AppData, WordCard, WordSet } from '../types'
+import type { AddCardResult, AppData, WordCard, WordSet } from '../types'
 import {
   DEFAULT_SOURCE_LANG,
   DEFAULT_TARGET_LANG,
   DEFAULT_WEIGHT,
+  cardKey,
 } from '../types'
 
 function uid(): string {
@@ -13,10 +14,33 @@ function uid(): string {
 
 export function useAppStore() {
   const [data, setData] = useState<AppData>(() => loadData())
+  const dataRef = useRef(data)
+  dataRef.current = data
 
   useEffect(() => {
     saveData(data)
   }, [data])
+
+  const getSet = useCallback(
+    (setId: string) => data.sets.find((s) => s.id === setId),
+    [data.sets],
+  )
+
+  const getCard = useCallback(
+    (cardId: string) => data.cards.find((c) => c.id === cardId),
+    [data.cards],
+  )
+
+  const getCardsForSet = useCallback(
+    (setId: string): WordCard[] => {
+      const set = data.sets.find((s) => s.id === setId)
+      if (!set) return []
+      return set.cardIds
+        .map((id) => data.cards.find((c) => c.id === id))
+        .filter((c): c is WordCard => Boolean(c))
+    },
+    [data.sets, data.cards],
+  )
 
   const createSet = useCallback(
     (
@@ -29,7 +53,7 @@ export function useAppStore() {
         name: name.trim() || 'Новый сет',
         sourceLang,
         targetLang,
-        cards: [],
+        cardIds: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }
@@ -42,7 +66,7 @@ export function useAppStore() {
   const updateSet = useCallback(
     (
       setId: string,
-      patch: Partial<Pick<WordSet, 'name' | 'cards' | 'sourceLang' | 'targetLang'>>,
+      patch: Partial<Pick<WordSet, 'name' | 'cardIds' | 'sourceLang' | 'targetLang'>>,
     ) => {
       setData((prev) => ({
         ...prev,
@@ -55,66 +79,132 @@ export function useAppStore() {
   )
 
   const deleteSet = useCallback((setId: string) => {
-    setData((prev) => ({ ...prev, sets: prev.sets.filter((s) => s.id !== setId) }))
+    setData((prev) => {
+      const sets = prev.sets.filter((s) => s.id !== setId)
+      const used = new Set(sets.flatMap((s) => s.cardIds))
+      return {
+        ...prev,
+        sets,
+        cards: prev.cards.filter((c) => used.has(c.id)),
+      }
+    })
   }, [])
 
-  const addCard = useCallback((setId: string, front: string, back: string) => {
+  const addCard = useCallback((setId: string, front: string, back: string): AddCardResult => {
+    const f = front.trim()
+    const b = back.trim()
+    const prev = dataRef.current
+    const set = prev.sets.find((s) => s.id === setId)
+    if (!set) return { status: 'exists', cardId: '' }
+
+    const key = cardKey(f, b)
+    const existing = prev.cards.find((c) => cardKey(c.front, c.back) === key)
+
+    if (existing) {
+      if (set.cardIds.includes(existing.id)) {
+        return { status: 'exists', cardId: existing.id }
+      }
+      setData({
+        ...prev,
+        sets: prev.sets.map((s) =>
+          s.id === setId
+            ? {
+                ...s,
+                cardIds: [...s.cardIds, existing.id],
+                updatedAt: Date.now(),
+              }
+            : s,
+        ),
+      })
+      return { status: 'linked', cardId: existing.id }
+    }
+
     const card: WordCard = {
       id: uid(),
-      front: front.trim(),
-      back: back.trim(),
+      front: f,
+      back: b,
       weight: DEFAULT_WEIGHT,
     }
-    setData((prev) => ({
+    setData({
       ...prev,
+      cards: [...prev.cards, card],
       sets: prev.sets.map((s) =>
         s.id === setId
-          ? { ...s, cards: [...s.cards, card], updatedAt: Date.now() }
+          ? {
+              ...s,
+              cardIds: [...s.cardIds, card.id],
+              updatedAt: Date.now(),
+            }
           : s,
       ),
-    }))
+    })
+    return { status: 'created', cardId: card.id }
   }, [])
 
   const updateCard = useCallback(
-    (setId: string, cardId: string, patch: Partial<Pick<WordCard, 'front' | 'back'>>) => {
-      setData((prev) => ({
-        ...prev,
-        sets: prev.sets.map((s) =>
-          s.id !== setId
-            ? s
-            : {
-                ...s,
-                updatedAt: Date.now(),
-                cards: s.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c)),
-              },
-        ),
-      }))
+    (cardId: string, patch: Partial<Pick<WordCard, 'front' | 'back'>>) => {
+      setData((prev) => {
+        const nextFront = patch.front?.trim()
+        const nextBack = patch.back?.trim()
+        const current = prev.cards.find((c) => c.id === cardId)
+        if (!current) return prev
+
+        const front = nextFront ?? current.front
+        const back = nextBack ?? current.back
+        const key = cardKey(front, back)
+        const clash = prev.cards.find((c) => c.id !== cardId && cardKey(c.front, c.back) === key)
+
+        // Если совпало с другой карточкой — сливаем: ссылки → clash, удаляем текущую
+        if (clash) {
+          return {
+            ...prev,
+            cards: prev.cards.filter((c) => c.id !== cardId),
+            sets: prev.sets.map((s) => ({
+              ...s,
+              cardIds: s.cardIds
+                .map((id) => (id === cardId ? clash.id : id))
+                .filter((id, i, arr) => arr.indexOf(id) === i),
+              updatedAt: Date.now(),
+            })),
+          }
+        }
+
+        return {
+          ...prev,
+          cards: prev.cards.map((c) =>
+            c.id === cardId ? { ...c, front, back } : c,
+          ),
+        }
+      })
     },
     [],
   )
 
+  /** Убрать карточку из сета; из библиотеки — только если больше нигде не используется */
   const deleteCard = useCallback((setId: string, cardId: string) => {
-    setData((prev) => ({
-      ...prev,
-      sets: prev.sets.map((s) =>
+    setData((prev) => {
+      const sets = prev.sets.map((s) =>
         s.id !== setId
           ? s
           : {
               ...s,
               updatedAt: Date.now(),
-              cards: s.cards.filter((c) => c.id !== cardId),
+              cardIds: s.cardIds.filter((id) => id !== cardId),
             },
-      ),
-    }))
+      )
+      const stillUsed = sets.some((s) => s.cardIds.includes(cardId))
+      return {
+        ...prev,
+        sets,
+        cards: stillUsed ? prev.cards : prev.cards.filter((c) => c.id !== cardId),
+      }
+    })
   }, [])
 
   const updateCardWeight = useCallback((cardId: string, weight: number) => {
     setData((prev) => ({
       ...prev,
-      sets: prev.sets.map((s) => ({
-        ...s,
-        cards: s.cards.map((c) => (c.id === cardId ? { ...c, weight } : c)),
-      })),
+      cards: prev.cards.map((c) => (c.id === cardId ? { ...c, weight } : c)),
     }))
   }, [])
 
@@ -169,13 +259,17 @@ export function useAppStore() {
     }))
   }, [])
 
-  const getSet = useCallback(
-    (setId: string) => data.sets.find((s) => s.id === setId),
-    [data.sets],
+  const findCardByText = useCallback(
+    (front: string, back: string) => {
+      const key = cardKey(front, back)
+      return data.cards.find((c) => cardKey(c.front, c.back) === key)
+    },
+    [data.cards],
   )
 
   return {
     sets: data.sets,
+    cards: data.cards,
     stats: data.stats,
     createSet,
     updateSet,
@@ -189,6 +283,9 @@ export function useAppStore() {
     recordReview,
     resetStats,
     getSet,
+    getCard,
+    getCardsForSet,
+    findCardByText,
   }
 }
 

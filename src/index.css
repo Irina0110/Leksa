@@ -641,6 +641,16 @@ h2,
   font-weight: 600;
 }
 
+.form-hint {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--accent, #7c3aed);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
 .add-card-form .accent-btn {
   width: 100%;
   margin-top: 8px;

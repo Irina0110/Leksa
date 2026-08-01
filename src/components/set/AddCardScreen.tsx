@@ -46,13 +46,16 @@ export function AddCardScreen({ store, setId, onBack }: Props) {
         back={form.back}
         translating={form.translating}
         translateError={form.translateError}
+        statusMessage={form.statusMessage}
         onFrontChange={(value) => {
           form.setFront(value)
           form.clearTranslateError()
+          form.clearStatusMessage()
         }}
         onBackChange={(value) => {
           form.setBack(value)
           form.clearTranslateError()
+          form.clearStatusMessage()
         }}
         onTranslate={form.runTranslate}
         onSubmit={(e) => {
