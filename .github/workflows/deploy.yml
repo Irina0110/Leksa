@@ -28,8 +28,21 @@ jobs:
       - name: Install
         run: npm install
 
+      - name: Deploy TTS proxy (Cloudflare Worker)
+        if: ${{ vars.VITE_TTS_PROXY_URL != '' }}
+        continue-on-error: true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: tts-worker
+          command: deploy
+
       - name: Build
         run: npm run build
+        env:
+          # URL воркера, напр. https://leksa-tts.<subdomain>.workers.dev
+          VITE_TTS_PROXY_URL: ${{ vars.VITE_TTS_PROXY_URL }}
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4

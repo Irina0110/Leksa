@@ -9,8 +9,8 @@ type Props = {
 }
 
 /**
- * iPhone PWA: play() только из pointerdown (иначе Safari блокирует звук).
- * Десктоп: только click — иначе pointerdown+click произносят дважды.
+ * iPhone PWA: unlock + старт в pointerdown, затем Google TTS через proxy→blob.
+ * Десктоп: только click.
  */
 export function SpeakButton({ text, lang, className = '', label = 'Произнести' }: Props) {
   const [busy, setBusy] = useState(false)
@@ -24,16 +24,15 @@ export function SpeakButton({ text, lang, className = '', label = 'Произн�
     if (now - lastAt.current < 450) return
     lastAt.current = now
 
+    // Важно: unlock синхронно в жесте, до await внутри speakText
     unlockSpeech()
     setBusy(true)
     void speakText(text, lang).finally(() => setBusy(false))
   }
 
   const onPointerDown = (e: PointerEvent) => {
-    // Блокируем свайп карточки
     e.stopPropagation()
     if (!isIOSDevice()) return
-    // preventDefault сохраняет user gesture для audio.play()
     e.preventDefault()
     fire()
   }

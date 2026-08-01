@@ -2,8 +2,37 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+function googleTtsProxy() {
+  return {
+    target: 'https://translate.googleapis.com',
+    changeOrigin: true,
+    rewrite: (path: string) => {
+      const incoming = new URL(path, 'http://localhost')
+      const q = incoming.searchParams.get('q') || ''
+      const tl = incoming.searchParams.get('tl') || 'en'
+      const out = new URL('https://translate.googleapis.com/translate_tts')
+      out.searchParams.set('ie', 'UTF-8')
+      out.searchParams.set('client', 'gtx')
+      out.searchParams.set('tl', tl)
+      out.searchParams.set('q', q)
+      return out.pathname + out.search
+    },
+  }
+}
+
 export default defineConfig({
   base: '/Leksa/',
+  server: {
+    proxy: {
+      // Локально и с телефона в LAN: blob-озвучка через same-origin proxy
+      '/Leksa/api/tts': googleTtsProxy(),
+    },
+  },
+  preview: {
+    proxy: {
+      '/Leksa/api/tts': googleTtsProxy(),
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -40,11 +69,18 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Не кэшировать Google Translate / TTS — нужны живые ответы с телефона
         navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/translate\.(googleapis|google)\.com\/.*/i,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /\/api\/tts.*/i,
+            handler: 'NetworkOnly',
+          },
+          {
+            urlPattern: /^https:\/\/.*\.workers\.dev\/.*/i,
             handler: 'NetworkOnly',
           },
         ],
