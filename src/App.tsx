@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Home } from './components/Home'
+import { LibraryPage } from './components/LibraryPage'
 import { StatsPage } from './components/StatsPage'
 import { AddCardScreen, SetEditor } from './components/set'
 import { StudyMode } from './components/StudyMode'
@@ -22,6 +23,10 @@ export default function App() {
 
   if (view.name === 'stats') {
     return <StatsPage store={store} onBack={() => setView({ name: 'home' })} />
+  }
+
+  if (view.name === 'library') {
+    return <LibraryPage store={store} onBack={() => setView({ name: 'home' })} />
   }
 
   if (view.name === 'add-card') {
@@ -53,6 +58,7 @@ export default function App() {
       onEditSet={(setId) => setView({ name: 'edit-set', setId })}
       onStartStudy={(setIds) => setView({ name: 'study', setIds })}
       onOpenStats={() => setView({ name: 'stats' })}
+      onOpenLibrary={() => setView({ name: 'library' })}
     />
   )
 }

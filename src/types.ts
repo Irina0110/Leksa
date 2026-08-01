@@ -60,6 +60,7 @@ export type View =
   | { name: 'add-card'; setId: string }
   | { name: 'study'; setIds: string[] }
   | { name: 'stats' }
+  | { name: 'library' }
 
 export const DEFAULT_WEIGHT = 2
 export const MIN_WEIGHT = 1

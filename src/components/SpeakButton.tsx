@@ -1,5 +1,5 @@
-import { useEffect, useState, type MouseEvent, type PointerEvent } from 'react'
-import { canSpeak, speakText, unlockSpeech } from '../speech'
+import { useRef, useState, type PointerEvent, type MouseEvent } from 'react'
+import { canSpeak, isIOSDevice, speakText, unlockSpeech } from '../speech'
 
 type Props = {
   text: string
@@ -8,37 +8,49 @@ type Props = {
   label?: string
 }
 
+/**
+ * iPhone PWA: play() только из pointerdown (иначе Safari блокирует звук).
+ * Десктоп: только click — иначе pointerdown+click произносят дважды.
+ */
 export function SpeakButton({ text, lang, className = '', label = 'Произнести' }: Props) {
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    unlockSpeech()
-  }, [])
+  const lastAt = useRef(0)
 
   if (!canSpeak()) return null
 
-  const start = (e: MouseEvent | PointerEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+  const fire = () => {
     if (!text.trim() || busy) return
+    const now = Date.now()
+    if (now - lastAt.current < 450) return
+    lastAt.current = now
 
     unlockSpeech()
     setBusy(true)
-
-    // speakText вызывает audio.play() синхронно — критично для iOS PWA
     void speakText(text, lang).finally(() => setBusy(false))
+  }
+
+  const onPointerDown = (e: PointerEvent) => {
+    // Блокируем свайп карточки
+    e.stopPropagation()
+    if (!isIOSDevice()) return
+    // preventDefault сохраняет user gesture для audio.play()
+    e.preventDefault()
+    fire()
+  }
+
+  const onClick = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (isIOSDevice()) return
+    fire()
   }
 
   return (
     <button
       type="button"
       className={`speak-btn ${className}`.trim()}
-      onPointerDown={(e) => {
-        // Не даём свайпу обучения перехватить жест, но не стартуем звук здесь —
-        // play() надёжнее на click (полный user gesture на iOS)
-        e.stopPropagation()
-      }}
-      onClick={start}
+      onPointerDown={onPointerDown}
+      onClick={onClick}
       disabled={!text.trim() || busy}
       aria-label={label}
       title={label}

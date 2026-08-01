@@ -183,11 +183,16 @@ h2,
 }
 
 .home-toolbar {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: stretch;
   animation: rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+.home-toolbar .primary-btn {
+  flex: 1 1 auto;
+  min-width: min(100%, 160px);
 }
 
 .ghost-link-btn {
@@ -678,6 +683,12 @@ h2,
   background: #ffffff;
   border: 1px solid var(--line);
   box-shadow: var(--shadow-sm);
+}
+
+.card-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .card-tile.is-editing {
@@ -1305,5 +1316,229 @@ h2,
   font-weight: 700;
   color: var(--accent-deep);
   min-height: 1em;
+}
+
+/* —— Библиотека слов —— */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.library-search {
+  margin-bottom: 4px;
+}
+
+.library-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.library-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
+.library-item.is-editing .field {
+  margin-bottom: 0;
+}
+
+.library-main {
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.library-main strong {
+  font-size: 1.05rem;
+}
+
+.library-main span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.library-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.set-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.08);
+  color: var(--accent-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.library-no-set {
+  font-size: 0.82rem;
+}
+
+.library-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* —— Выбор сетов (sheet) —— */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 10, 30, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: fade-in 0.18s ease;
+}
+
+.sheet-panel {
+  width: min(100%, 520px);
+  max-height: min(78vh, 640px);
+  overflow: auto;
+  background: #ffffff;
+  border-radius: 22px 22px 0 0;
+  padding: 10px 18px 22px;
+  box-shadow: 0 -12px 40px rgba(40, 20, 80, 0.18);
+  animation: sheet-up 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  margin: 4px auto 14px;
+}
+
+.sheet-title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.sheet-empty {
+  margin: 8px 0 16px;
+}
+
+.sheet-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: #fafafa;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sheet-option.is-on {
+  border-color: var(--accent);
+  background: rgba(124, 58, 237, 0.06);
+}
+
+.sheet-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--accent-deep);
+  flex-shrink: 0;
+}
+
+.sheet-option.is-on .sheet-check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.sheet-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sheet-option-body strong {
+  font-size: 0.98rem;
+}
+
+.sheet-option-body .muted {
+  font-size: 0.78rem;
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 

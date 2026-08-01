@@ -1,7 +1,12 @@
 import { toGoogleLang } from './translate'
 
+const SILENT_WAV =
+  'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA='
+
+let sharedAudio: HTMLAudioElement | null = null
 let currentAudio: HTMLAudioElement | null = null
 let unlocked = false
+let speakGeneration = 0
 
 const SPEECH_LANG: Record<string, string> = {
   en: 'en-US',
@@ -28,7 +33,7 @@ export function canSpeak(): boolean {
   return typeof window !== 'undefined' && typeof Audio !== 'undefined'
 }
 
-function isIOS(): boolean {
+export function isIOSDevice(): boolean {
   if (typeof navigator === 'undefined') return false
   return (
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -47,32 +52,46 @@ function preferPlaybackSession(): void {
   }
 }
 
-function stopCurrent(): void {
-  if (currentAudio) {
-    currentAudio.pause()
-    currentAudio.removeAttribute('src')
-    currentAudio.load()
-    currentAudio = null
-  }
+function getSharedAudio(): HTMLAudioElement {
+  if (sharedAudio) return sharedAudio
+  const el = document.createElement('audio')
+  el.id = 'leksa-tts'
+  el.setAttribute('playsinline', 'true')
+  el.setAttribute('webkit-playsinline', 'true')
+  el.playsInline = true
+  el.preload = 'auto'
+  document.body.appendChild(el)
+  sharedAudio = el
+  return el
+}
+
+function stopSynthesis(): void {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel()
   }
 }
 
-/** Разблокирует аудио на iOS после первого жеста */
+function clearAudioHandlers(el: HTMLAudioElement): void {
+  el.onplaying = null
+  el.onended = null
+  el.onerror = null
+}
+
+/** Разблокирует тот же <audio>, которым потом говорим (критично для iPhone PWA) */
 export function unlockSpeech(): void {
-  if (unlocked || typeof window === 'undefined') return
-  unlocked = true
+  if (typeof window === 'undefined') return
   preferPlaybackSession()
+  const el = getSharedAudio()
+  if (unlocked) return
+  unlocked = true
 
   try {
-    const silent = new Audio(
-      'data:audio/mp3;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAA5TEFNRTMuMTAwAa8AAAAAAAAAABUgJAUHQQAB9gAAAYYzQctlAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
-    )
-    silent.setAttribute('playsinline', 'true')
-    silent.volume = 0.01
-    void silent.play().then(() => {
-      silent.pause()
+    el.src = SILENT_WAV
+    el.volume = 1
+    void el.play().then(() => {
+      el.pause()
+      el.removeAttribute('src')
+      el.load()
     })
   } catch {
     // ignore
@@ -86,15 +105,13 @@ function pickVoice(langTag: string): SpeechSynthesisVoice | undefined {
   const prefix = want.slice(0, 2)
   return (
     voices.find((v) => v.lang.toLowerCase() === want) ||
-    voices.find((v) => v.lang.toLowerCase().startsWith(prefix + '-')) ||
+    voices.find((v) => v.lang.toLowerCase().startsWith(`${prefix}-`)) ||
     voices.find((v) => v.lang.toLowerCase().startsWith(prefix))
   )
 }
 
-/** Запасной вариант, если Google TTS недоступен */
 function speakWithSystem(text: string, langCode: string): void {
   if (!('speechSynthesis' in window)) return
-
   try {
     window.speechSynthesis.resume()
   } catch {
@@ -103,92 +120,94 @@ function speakWithSystem(text: string, langCode: string): void {
 
   const utter = new SpeechSynthesisUtterance(text)
   utter.lang = SPEECH_LANG[langCode] ?? langCode
-  utter.rate = isIOS() ? 0.95 : 0.92
+  utter.rate = isIOSDevice() ? 0.95 : 0.92
   utter.pitch = 1
   utter.volume = 1
-
   const voice = pickVoice(utter.lang)
   if (voice) utter.voice = voice
 
   window.speechSynthesis.cancel()
-  window.setTimeout(() => {
-    window.speechSynthesis.speak(utter)
-  }, isIOS() ? 40 : 0)
+  window.speechSynthesis.speak(utter)
 }
 
-/**
- * URL озвучки Google Translate.
- * client=tw-ob — самый совместимый вариант для <audio> на мобильных.
- */
 function buildGoogleTtsUrl(text: string, langCode: string): string {
-  const lang = toGoogleLang(langCode)
-  const url = new URL('https://translate.google.com/translate_tts')
+  const url = new URL('https://translate.googleapis.com/translate_tts')
   url.searchParams.set('ie', 'UTF-8')
-  url.searchParams.set('client', 'tw-ob')
-  url.searchParams.set('tl', lang)
+  url.searchParams.set('client', 'gtx')
+  url.searchParams.set('tl', toGoogleLang(langCode))
   url.searchParams.set('q', text.slice(0, 180))
-  // обход кэша Safari, иначе повтор иногда молчит
-  url.searchParams.set('_', String(Date.now()))
   return url.toString()
 }
 
-function getSharedAudio(): HTMLAudioElement {
-  let el = document.getElementById('leksa-tts') as HTMLAudioElement | null
-  if (!el) {
-    el = document.createElement('audio')
-    el.id = 'leksa-tts'
-    el.setAttribute('playsinline', 'true')
-    el.setAttribute('webkit-playsinline', 'true')
-    el.preload = 'auto'
-    // Не ставить crossOrigin — у Google TTS нет CORS, а для <audio> он не нужен
-    document.body.appendChild(el)
-  }
-  return el
-}
-
 /**
- * Озвучка через Google Translate TTS (как в переводчике Google).
- * Вызывать синхронно из user gesture (click/touch), иначе iOS заблокирует play().
- * Если Google не ответил — fallback на системный голос.
+ * Озвучка Google Translate TTS.
+ * Вызывать синхронно из user gesture (pointerdown на iPhone).
+ * Системный голос — только если Google не заиграл (без параллельного дубля).
  */
 export function speakText(text: string, langCode: string): Promise<void> {
   const value = text.trim()
   if (!value || !canSpeak()) return Promise.resolve()
 
-  unlockSpeech()
   preferPlaybackSession()
-  stopCurrent()
+  unlockSpeech()
+  stopSynthesis()
 
+  const gen = ++speakGeneration
   const el = getSharedAudio()
+
+  try {
+    el.pause()
+  } catch {
+    // ignore
+  }
+  clearAudioHandlers(el)
   currentAudio = el
+
+  el.volume = 1
   el.src = buildGoogleTtsUrl(value, langCode)
 
-  // play() обязательно в том же жесте пользователя
-  const playPromise = el.play()
+  let googlePlaying = false
+  let settled = false
+  let usedFallback = false
+
+  const fallbackOnce = () => {
+    if (usedFallback || googlePlaying || gen !== speakGeneration) return
+    usedFallback = true
+    speakWithSystem(value, langCode)
+  }
 
   return new Promise((resolve) => {
-    let settled = false
-    const finish = () => {
+    const done = () => {
       if (settled) return
       settled = true
       if (currentAudio === el) currentAudio = null
       resolve()
     }
 
-    el.onended = finish
-    el.onerror = () => {
-      speakWithSystem(value, langCode)
-      finish()
+    el.onplaying = () => {
+      if (gen !== speakGeneration) return
+      googlePlaying = true
+      stopSynthesis()
     }
 
+    el.onended = () => done()
+
+    el.onerror = () => {
+      if (gen !== speakGeneration) return
+      fallbackOnce()
+      done()
+    }
+
+    const playPromise = el.play()
     if (playPromise) {
       playPromise.catch(() => {
-        speakWithSystem(value, langCode)
-        finish()
+        if (gen !== speakGeneration) return
+        fallbackOnce()
+        done()
       })
     }
 
-    window.setTimeout(finish, 15000)
+    window.setTimeout(done, 12000)
   })
 }
 

@@ -79,15 +79,11 @@ export function useAppStore() {
   )
 
   const deleteSet = useCallback((setId: string) => {
-    setData((prev) => {
-      const sets = prev.sets.filter((s) => s.id !== setId)
-      const used = new Set(sets.flatMap((s) => s.cardIds))
-      return {
-        ...prev,
-        sets,
-        cards: prev.cards.filter((c) => used.has(c.id)),
-      }
-    })
+    setData((prev) => ({
+      ...prev,
+      sets: prev.sets.filter((s) => s.id !== setId),
+      // Слова остаются в библиотеке даже без сетов
+    }))
   }, [])
 
   const addCard = useCallback((setId: string, front: string, back: string): AddCardResult => {
@@ -180,10 +176,33 @@ export function useAppStore() {
     [],
   )
 
-  /** Убрать карточку из сета; из библиотеки — только если больше нигде не используется */
+  const getSetsForCard = useCallback(
+    (cardId: string): WordSet[] => data.sets.filter((s) => s.cardIds.includes(cardId)),
+    [data.sets],
+  )
+
+  /** Добавить существующее слово в сет (без дубликата) */
+  const linkCardToSet = useCallback((cardId: string, setId: string): boolean => {
+    const prev = dataRef.current
+    const set = prev.sets.find((s) => s.id === setId)
+    if (!set || !prev.cards.some((c) => c.id === cardId)) return false
+    if (set.cardIds.includes(cardId)) return false
+    setData({
+      ...prev,
+      sets: prev.sets.map((s) =>
+        s.id === setId
+          ? { ...s, cardIds: [...s.cardIds, cardId], updatedAt: Date.now() }
+          : s,
+      ),
+    })
+    return true
+  }, [])
+
+  /** Убрать карточку из сета (слово остаётся в библиотеке) */
   const deleteCard = useCallback((setId: string, cardId: string) => {
-    setData((prev) => {
-      const sets = prev.sets.map((s) =>
+    setData((prev) => ({
+      ...prev,
+      sets: prev.sets.map((s) =>
         s.id !== setId
           ? s
           : {
@@ -191,12 +210,78 @@ export function useAppStore() {
               updatedAt: Date.now(),
               cardIds: s.cardIds.filter((id) => id !== cardId),
             },
-      )
-      const stillUsed = sets.some((s) => s.cardIds.includes(cardId))
+      ),
+    }))
+  }, [])
+
+  /** Переместить слово из одного сета в другой */
+  const moveCard = useCallback((cardId: string, fromSetId: string, toSetId: string): boolean => {
+    if (fromSetId === toSetId) return false
+    const prev = dataRef.current
+    const from = prev.sets.find((s) => s.id === fromSetId)
+    const to = prev.sets.find((s) => s.id === toSetId)
+    if (!from || !to || !from.cardIds.includes(cardId)) return false
+
+    setData({
+      ...prev,
+      sets: prev.sets.map((s) => {
+        if (s.id === fromSetId) {
+          return {
+            ...s,
+            cardIds: s.cardIds.filter((id) => id !== cardId),
+            updatedAt: Date.now(),
+          }
+        }
+        if (s.id === toSetId) {
+          if (s.cardIds.includes(cardId)) return s
+          return {
+            ...s,
+            cardIds: [...s.cardIds, cardId],
+            updatedAt: Date.now(),
+          }
+        }
+        return s
+      }),
+    })
+    return true
+  }, [])
+
+  /** Удалить слово из библиотеки и из всех сетов */
+  const deleteCardForever = useCallback((cardId: string) => {
+    setData((prev) => ({
+      ...prev,
+      cards: prev.cards.filter((c) => c.id !== cardId),
+      sets: prev.sets.map((s) =>
+        s.cardIds.includes(cardId)
+          ? {
+              ...s,
+              cardIds: s.cardIds.filter((id) => id !== cardId),
+              updatedAt: Date.now(),
+            }
+          : s,
+      ),
+    }))
+  }, [])
+
+  /** Синхронизировать членство слова в сетах */
+  const setCardMembership = useCallback((cardId: string, setIds: string[]) => {
+    const wanted = new Set(setIds)
+    setData((prev) => {
+      if (!prev.cards.some((c) => c.id === cardId)) return prev
       return {
         ...prev,
-        sets,
-        cards: stillUsed ? prev.cards : prev.cards.filter((c) => c.id !== cardId),
+        sets: prev.sets.map((s) => {
+          const has = s.cardIds.includes(cardId)
+          const should = wanted.has(s.id)
+          if (has === should) return s
+          return {
+            ...s,
+            updatedAt: Date.now(),
+            cardIds: should
+              ? [...s.cardIds, cardId]
+              : s.cardIds.filter((id) => id !== cardId),
+          }
+        }),
       }
     })
   }, [])
@@ -277,6 +362,10 @@ export function useAppStore() {
     addCard,
     updateCard,
     deleteCard,
+    deleteCardForever,
+    linkCardToSet,
+    moveCard,
+    setCardMembership,
     updateCardWeight,
     recordSessionStart,
     recordSessionEnd,
@@ -285,6 +374,7 @@ export function useAppStore() {
     getSet,
     getCard,
     getCardsForSet,
+    getSetsForCard,
     findCardByText,
   }
 }

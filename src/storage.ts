@@ -99,11 +99,8 @@ function migrateToLibrary(parsed: {
     }
   })
 
-  // Убрать карточки, на которые никто не ссылается (после чистки битых id)
-  const used = new Set(sets.flatMap((s) => s.cardIds))
-  const cards = library.filter((c) => used.has(c.id))
-
-  return { sets, cards }
+  // Библиотека хранит все слова, в том числе без сетов
+  return { sets, cards: library }
 }
 
 export function loadData(): AppData {

@@ -7,9 +7,17 @@ type Props = {
   onEditSet: (setId: string) => void
   onStartStudy: (setIds: string[]) => void
   onOpenStats: () => void
+  onOpenLibrary: () => void
 }
 
-export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats }: Props) {
+export function Home({
+  store,
+  onCreateSet,
+  onEditSet,
+  onStartStudy,
+  onOpenStats,
+  onOpenLibrary,
+}: Props) {
   const [selected, setSelected] = useState<string[]>([])
 
   const totalSelectedCards = useMemo(() => {
@@ -52,6 +60,10 @@ export function Home({ store, onCreateSet, onEditSet, onStartStudy, onOpenStats 
             +
           </span>
           Новый сет
+        </button>
+        <button type="button" className="ghost-link-btn" onClick={onOpenLibrary}>
+          Все слова
+          {store.cards.length > 0 ? ` · ${store.cards.length}` : ''}
         </button>
         <button type="button" className="ghost-link-btn" onClick={onOpenStats}>
           Статистика
