@@ -58,7 +58,6 @@ function getSharedAudio(): HTMLAudioElement {
   el.id = 'leksa-tts'
   el.setAttribute('playsinline', 'true')
   el.setAttribute('webkit-playsinline', 'true')
-  el.playsInline = true
   el.preload = 'auto'
   document.body.appendChild(el)
   sharedAudio = el
